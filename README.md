@@ -21,3 +21,4 @@ All images and either vectors or webp for additional lossless quality compressio
 * Some of the server items return strange symbols instead of clean strings: [Example](https://interview.superology.dev/betshops?boundingBox=50.7481463255406%2C12.610780186951159%2C50.70792419045236%2C12.559317648410799)
 * Phone numbers seem to be absent from the endpoint so I hardcoded the values and made them callable on click
 * Tested on Android 8 and 12
+* .apk included for faster install
