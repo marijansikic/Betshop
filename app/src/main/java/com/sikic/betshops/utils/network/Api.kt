@@ -1,7 +1,7 @@
-package com.sikic.betshops
+package com.sikic.betshops.utils.network
 
 import com.sikic.betshops.models.BetShopData
-import retrofit2.Call
+import io.reactivex.rxjava3.core.Single
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -10,5 +10,5 @@ interface Api {
     @GET("/betshops")
     fun getBetShopData(
         @Query("boundingBox") query: String
-    ): Call<BetShopData>
+    ): Single<BetShopData>
 }

@@ -10,7 +10,7 @@ import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
@@ -18,10 +18,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.*
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -44,7 +41,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     private val europeCoordinates = LatLng(53.0, 9.0)
     private val locationPermissionCode = 1
 
-    private lateinit var mMap: GoogleMap
+    private lateinit var map: GoogleMap
     private lateinit var clusterManager: ClusterManager<CustomMarker>
 
     private lateinit var binding: ActivityMapsBinding
@@ -67,18 +64,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
-        mMap = googleMap
-        mMap.apply {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
+        map = googleMap
+        map.apply {
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
             setOnCameraIdleListener(this@MapsActivity)
             if (isLocationGranted) {
                 isMyLocationEnabled = true
             }
-            uiSettings.isMyLocationButtonEnabled = false
-            uiSettings.isCompassEnabled = false
-            setMapStyle(
-                MapStyleOptions.loadRawResourceStyle(this@MapsActivity, R.raw.dark_mode_google_maps)
-            )
         }
         setUpClusterer()
     }
@@ -86,23 +78,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     override fun onCameraIdle() {
         selectedMarker = null
         clusterManager.clearItems()
-
-        //top-right latitude (lat1),
-        //top-right longitude (lon1),
-        //bottom-left latitude (lat2),
-        //bottom-left longitude (lon2)
-        val visibleRegion = mMap.projection.visibleRegion.latLngBounds
-
-        //TODO refactor
-        val stringBuilder = StringBuilder(visibleRegion.northeast.latitude.toString())
-            .append(",")
-            .append(visibleRegion.northeast.longitude.toString())
-            .append(",")
-            .append(visibleRegion.southwest.latitude.toString())
-            .append(",")
-            .append(visibleRegion.southwest.longitude.toString())
-
-        viewModel.getBetShopsData(stringBuilder.toString())
+        viewModel.getBetShopsData(map.projection.visibleRegion.latLngBounds)
     }
 
     override fun onClusterItemClick(marker: CustomMarker): Boolean {
@@ -114,7 +90,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
         (clusterManager.renderer as ClusterRenderer).getMarker(marker)
             .setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_active))
         initBottomSheetDialog(marker)
-
         return true
     }
 
@@ -127,8 +102,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
         if (requestCode == locationPermissionCode) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 isLocationGranted = true
-                mMap.isMyLocationEnabled = true
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
+                map.isMyLocationEnabled = true
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
             } else {
                 if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
                     showRationaleDialog()
@@ -140,17 +115,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     private fun subscribeObservers() {
         viewModel.dataState.observe(this) { event ->
             when (event) {
-                is MapStateEvent.Loading -> Toast.makeText(
-                    this,
-                    "loading",
-                    Toast.LENGTH_SHORT
-                ).show()
-                is MapStateEvent.Error -> Snackbar.make(
-                    binding.map,
-                    getString(R.string.error_network_request),
-                    Snackbar.LENGTH_LONG
-                ).show()
+                is MapStateEvent.Loading -> {
+                    binding.progressBar.show()
+                }
+                is MapStateEvent.Error -> {
+                    binding.progressBar.hide()
+                    Snackbar.make(
+                        binding.map,
+                        getString(R.string.error_network_request),
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
                 is MapStateEvent.GetBetShopsEvent -> {
+                    binding.progressBar.hide()
                     event.betShopData.betShopList.forEach { clusterManager.addItem(CustomMarker(it)) }
                     clusterManager.cluster()
                 }
@@ -159,11 +136,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     }
 
     private fun setUpClusterer() {
-        clusterManager = ClusterManager(this, mMap)
+        clusterManager = ClusterManager(this, map)
         clusterManager.setOnClusterItemClickListener(this)
         clusterManager.renderer = ClusterRenderer(
             this,
-            mMap,
+            map,
             clusterManager
         )
     }
@@ -171,32 +148,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     private fun initBottomSheetDialog(item: CustomMarker) {
         val bottomSheetDialog = BottomSheetDialog(this)
         bottomSheetDialog.setContentView(R.layout.dialog_bottom_sheet)
+        bottomSheetDialog.findViewById<TextView>(R.id.txtLocation)?.text =
+            viewModel.mapResponseToText(item.betShop)
 
-        with(item.betShop) {
-            bottomSheetDialog.findViewById<TextView>(R.id.txtLocation)?.text =
-                StringBuilder(this.name.trimStart())
-                    .append("\n")
-                    .append(this.address)
-                    .append("\n")
-                    .append(this.city)
-                    .append(" - ")
-                    .append(this.county)
+        val currentTime = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
-            val currentTime = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        bottomSheetDialog.findViewById<TextView>(R.id.txtStatus)?.text =
+            convertTextFormat(currentTime)
 
-            bottomSheetDialog.findViewById<TextView>(R.id.txtStatus)?.text =
-                convertTextFormat(currentTime)
-
-            bottomSheetDialog.findViewById<TextView>(R.id.txtRoute)?.setOnClickListener {
-                handleRouteClick(item)
-            }
+        bottomSheetDialog.findViewById<TextView>(R.id.txtRoute)?.setOnClickListener {
+            handleRouteClick(item)
         }
 
         bottomSheetDialog.findViewById<ImageView>(R.id.btnClose)
             ?.setOnClickListener { bottomSheetDialog.dismiss() }
-
+        bottomSheetDialog.setOnDismissListener {
+            selectedMarker?.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_normal))
+            selectedMarker = null
+        }
+        bottomSheetDialog.window!!.setDimAmount(0f)
         bottomSheetDialog.show()
     }
+
 
     private fun convertTextFormat(currentTime: Int): SpannableString {
         val spannableString: SpannableString?
@@ -204,8 +177,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             spannableString = SpannableString(getString(R.string.open_until))
             spannableString.setSpan(
                 ForegroundColorSpan(
-                    ContextCompat.getColor(
-                        this@MapsActivity,
+                    getColor(
                         R.color.primary
                     )
                 ), 0, getString(R.string.open_until).length, 0
@@ -214,8 +186,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             spannableString = SpannableString(getString(R.string.closed_until))
             spannableString.setSpan(
                 ForegroundColorSpan(
-                    ContextCompat.getColor(
-                        this@MapsActivity,
+                    getColor(
                         R.color.red
                     )
                 ), 0, getString(R.string.closed_until).length, 0
@@ -266,12 +237,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     }
 
     private fun showRationaleDialog() {
-        MaterialAlertDialogBuilder(this)
+        val rationaleDialog = MaterialAlertDialogBuilder(this, R.style.MyDialogTheme)
             .setTitle(getString(R.string.dialog_info))
             .setMessage(getString(R.string.dialog_message))
             .setNegativeButton(getString(R.string.dialog_negative)) { dialog, _ ->
                 dialog.dismiss()
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(munichCoordinates, 16f))
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(munichCoordinates, 16f))
             }
             .setPositiveButton(getString(R.string.dialog_positive)) { _, _ ->
                 requestPermissions(
@@ -281,5 +252,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             }
             .setCancelable(false)
             .show()
+        rationaleDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getColor(R.color.red))
+        rationaleDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getColor(R.color.primary))
     }
 }

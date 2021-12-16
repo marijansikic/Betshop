@@ -1,15 +1,17 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Bet Shops</string>
-    <string name="title_activity_maps">Bet shops</string>
+    <string name="title_activity_maps">Bet Shops</string>
     <string name="route">Route</string>
 
-    <string name="error_network_request">Something went wrong, please try again</string>
-    <string name="error_no_implicit_intent_handler">No application can handle this request</string>
     <string name="open_until">Open now until 16:00</string>
     <string name="closed_until">Opens tomorrow at 08:00</string>
-    <string name="phone_number">311-56-44</string>
+    <string name="phone_number" tools:ignore="TypographyDashes">311–56–44</string>
+
     <string name="dialog_info">Info</string>
     <string name="dialog_message">If you do not allow location permission, system will use default location</string>
     <string name="dialog_negative">Do not allow</string>
     <string name="dialog_positive">Ask me again</string>
+
+    <string name="error_network_request">Something went wrong, please try again</string>
+    <string name="error_no_implicit_intent_handler">No application can handle this request</string>
 </resources>

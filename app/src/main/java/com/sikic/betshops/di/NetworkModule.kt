@@ -1,19 +1,18 @@
 package com.sikic.betshops.di
 
 
-import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.readystatesoftware.chuck.ChuckInterceptor
-import com.sikic.betshops.Api
+import com.sikic.betshops.utils.network.Api
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import hu.akarnokd.rxjava3.retrofit.RxJava3CallAdapterFactory
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -22,9 +21,11 @@ object NetworkModule {
 
     @Singleton
     @Provides
-    fun provideOkHttpClient(@ApplicationContext appContext: Context): OkHttpClient {
+    fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
-            .addInterceptor(ChuckInterceptor(appContext))
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -41,6 +42,7 @@ object NetworkModule {
         return Retrofit.Builder()
             .baseUrl("https://interview.superology.dev/")
             .addConverterFactory(GsonConverterFactory.create(gson))
+            .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
             .client(okHttpClient)
             .build()
     }
