@@ -20,6 +20,7 @@
         <activity
             android:name=".ui.MapsActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.Betshops"
             android:label="@string/title_activity_maps">
             <intent-filter>
