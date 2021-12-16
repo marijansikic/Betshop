@@ -8,4 +8,8 @@
     <string name="open_until">Open now until 16:00</string>
     <string name="closed_until">Opens tomorrow at 08:00</string>
     <string name="phone_number">311-56-44</string>
+    <string name="dialog_info">Info</string>
+    <string name="dialog_message">If you do not allow location permission, system will use default location</string>
+    <string name="dialog_negative">Do not allow</string>
+    <string name="dialog_positive">Ask me again</string>
 </resources>

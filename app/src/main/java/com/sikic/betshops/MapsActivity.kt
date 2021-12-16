@@ -1,7 +1,9 @@
 package com.sikic.betshops
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.text.SpannableString
@@ -19,6 +21,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.maps.android.clustering.ClusterManager
 import com.readystatesoftware.chuck.ChuckInterceptor
@@ -35,20 +38,21 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.*
 
-
+@SuppressLint("MissingPermission")
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     GoogleMap.OnCameraIdleListener, ClusterManager.OnClusterItemClickListener<CustomMarker> {
+
+    private val munichCoordinates = LatLng(48.137154, 11.576124)
+    private val europeCoordinates = LatLng(53.0, 9.0)
+    private val locationPermissionCode = 1
 
     private lateinit var mMap: GoogleMap
     private lateinit var clusterManager: ClusterManager<CustomMarker>
 
     private lateinit var binding: ActivityMapsBinding
 
-    private val MUNICH_LAT = 48.137154
-    private val MUNICH_LON = 11.576124
-    private val LOCATION_PERMISSION_REQUEST_CODE = 1
-
     private var selectedMarker: Marker? = null
+    private var isLocationGranted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,29 +60,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
+        prepareMap()
     }
 
-    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         mMap.apply {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
             setOnCameraIdleListener(this@MapsActivity)
-            isMyLocationEnabled = true
+            if (isLocationGranted) {
+                isMyLocationEnabled = true
+            }
+            uiSettings.isMyLocationButtonEnabled = false
+            uiSettings.isCompassEnabled = false
+            setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(this@MapsActivity, R.raw.dark_mode_google_maps)
+            )
         }
-        mMap.uiSettings.isMyLocationButtonEnabled = false
-        mMap.uiSettings.isCompassEnabled = false
-        mMap.setMapStyle(
-            MapStyleOptions.loadRawResourceStyle(this, R.raw.dark_mode_google_maps))
-
         setUpClusterer()
-
-        //TODO permissions
-        // Add a marker in Munich and move the map
-        val default = LatLng(MUNICH_LAT, MUNICH_LON)
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(default))
     }
 
     override fun onCameraIdle() {
@@ -144,13 +143,30 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
         selectedMarker = (clusterManager.renderer as ClusterRenderer).getMarker(marker)
         (clusterManager.renderer as ClusterRenderer).getMarker(marker)
             .setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_active))
-
         initBottomSheetDialog(marker)
 
         return true
     }
 
-    @SuppressLint("PotentialBehaviorOverride")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == locationPermissionCode) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                isLocationGranted = true
+                mMap.isMyLocationEnabled = true
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(europeCoordinates, 5.9f))
+            } else {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+                    showRationaleDialog()
+                }
+            }
+        }
+    }
+
     private fun setUpClusterer() {
         clusterManager = ClusterManager(this, mMap)
         clusterManager.setOnClusterItemClickListener(this)
@@ -159,7 +175,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             mMap,
             clusterManager
         )
-        mMap.setOnMarkerClickListener(clusterManager.markerManager)
     }
 
     private fun initBottomSheetDialog(item: CustomMarker) {
@@ -236,5 +251,44 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
                 Snackbar.LENGTH_LONG
             ).show()
         }
+    }
+
+    private fun prepareMap() {
+        checkPermissions()
+
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+    }
+
+    private fun checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                locationPermissionCode
+            )
+        } else {
+            isLocationGranted = true
+        }
+    }
+
+    private fun showRationaleDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.dialog_info))
+            .setMessage(getString(R.string.dialog_message))
+            .setNegativeButton(getString(R.string.dialog_negative)) { dialog, _ ->
+                dialog.dismiss()
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(munichCoordinates, 16f))
+            }
+            .setPositiveButton(getString(R.string.dialog_positive)) { _, _ ->
+                requestPermissions(
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    locationPermissionCode
+                )
+            }
+            .setCancelable(false)
+            .show()
     }
 }

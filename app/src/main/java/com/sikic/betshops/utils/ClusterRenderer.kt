@@ -22,7 +22,7 @@ class ClusterRenderer(
         markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_normal))
     }
 
-    override fun shouldRenderAsCluster(cluster: Cluster<CustomMarker>): Boolean = cluster.size > 5
+    override fun shouldRenderAsCluster(cluster: Cluster<CustomMarker>): Boolean = cluster.size >= 5
 
     override fun getClusterText(bucket: Int): String = bucket.toString()
 
