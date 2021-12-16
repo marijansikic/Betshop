@@ -1,4 +1,6 @@
 # Betshop application #
+ ![](sportening.gif) 
+
 
  - Application shows betshops for client on map -> bet shops are located in Germany
  - If user does denies the location permission, map zooms to Munich, otherwise zooms out and shows data for whole Europe
