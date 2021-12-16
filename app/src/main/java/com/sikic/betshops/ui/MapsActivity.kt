@@ -1,4 +1,4 @@
-package com.sikic.betshops
+package com.sikic.betshops.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -10,8 +10,10 @@ import android.text.SpannableString
 import android.text.style.ForegroundColorSpan
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -24,20 +26,16 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.maps.android.clustering.ClusterManager
-import com.readystatesoftware.chuck.ChuckInterceptor
+import com.sikic.betshops.R
 import com.sikic.betshops.databinding.ActivityMapsBinding
 import com.sikic.betshops.extensions.isNotNull
-import com.sikic.betshops.models.BetShopData
 import com.sikic.betshops.models.CustomMarker
 import com.sikic.betshops.utils.ClusterRenderer
-import okhttp3.OkHttpClient
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
 
+
+@AndroidEntryPoint
 @SuppressLint("MissingPermission")
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     GoogleMap.OnCameraIdleListener, ClusterManager.OnClusterItemClickListener<CustomMarker> {
@@ -54,8 +52,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
     private var selectedMarker: Marker? = null
     private var isLocationGranted = false
 
+    private lateinit var viewModel: MapsViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        viewModel = ViewModelProvider(this)[MapsViewModel::class.java]
+        subscribeObservers()
 
         binding = ActivityMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -84,19 +87,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
         selectedMarker = null
         clusterManager.clearItems()
 
-        //TODO DI and MVVM
-        val client = OkHttpClient.Builder()
-            .addInterceptor(ChuckInterceptor(this))
-            .build()
-
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://interview.superology.dev")
-            .addConverterFactory(GsonConverterFactory.create())
-            .client(client)
-            .build()
-
-        val service: Api = retrofit.create(Api::class.java)
-
         //top-right latitude (lat1),
         //top-right longitude (lon1),
         //bottom-left latitude (lat2),
@@ -112,27 +102,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             .append(",")
             .append(visibleRegion.southwest.longitude.toString())
 
-        val call = service.getBetShopData(stringBuilder.toString())
-
-        call.enqueue(object :
-            Callback<BetShopData> {
-            override fun onFailure(call: Call<BetShopData>, t: Throwable) {
-                Snackbar.make(
-                    binding.map,
-                    getString(R.string.error_network_request),
-                    Snackbar.LENGTH_LONG
-                ).show()
-            }
-
-            override fun onResponse(call: Call<BetShopData>, response: Response<BetShopData>) {
-                if (response.isSuccessful && response.body().isNotNull()) {
-                    response.body()?.betShopList?.forEach { betshop ->
-                        clusterManager.addItem(CustomMarker(betshop))
-                    }
-                    clusterManager.cluster()
-                }
-            }
-        })
+        viewModel.getBetShopsData(stringBuilder.toString())
     }
 
     override fun onClusterItemClick(marker: CustomMarker): Boolean {
@@ -162,6 +132,27 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback,
             } else {
                 if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
                     showRationaleDialog()
+                }
+            }
+        }
+    }
+
+    private fun subscribeObservers() {
+        viewModel.dataState.observe(this) { event ->
+            when (event) {
+                is MapStateEvent.Loading -> Toast.makeText(
+                    this,
+                    "loading",
+                    Toast.LENGTH_SHORT
+                ).show()
+                is MapStateEvent.Error -> Snackbar.make(
+                    binding.map,
+                    getString(R.string.error_network_request),
+                    Snackbar.LENGTH_LONG
+                ).show()
+                is MapStateEvent.GetBetShopsEvent -> {
+                    event.betShopData.betShopList.forEach { clusterManager.addItem(CustomMarker(it)) }
+                    clusterManager.cluster()
                 }
             }
         }
